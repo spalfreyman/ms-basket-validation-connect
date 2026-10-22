@@ -1,0 +1,31 @@
+deployAs:
+  - name: basket-validation
+    applicationType: service
+    endpoint: /extension/basket-validation
+    scripts:
+      postDeploy: npm install && npm run build && npm run connect:post-deploy
+      preUndeploy: npm install && npm run build && npm run connect:pre-undeploy
+    configuration:
+      standardConfiguration:
+        - key: CTP_PROJECT_KEY
+          description: commercetools project key
+          required: true
+        - key: CTP_AUTH_URL
+          description: commercetools auth URL
+          required: true
+        - key: CTP_API_URL
+          description: commercetools API URL
+          required: true
+      securedConfiguration:
+        - key: CTP_CLIENT_ID
+          description: API client id (scopes manage_extensions, view_customers)
+          required: true
+        - key: CTP_CLIENT_SECRET
+          description: API client secret
+          required: true
+        - key: CTP_SCOPES
+          description: Scopes of the API client
+          required: true
+        - key: EXTENSION_SHARED_SECRET
+          description: Value the API Extension sends in the Authorization header
+          required: true

@@ -1,0 +1,25 @@
+{
+  "name": "ms-basket-validation",
+  "version": "1.0.0",
+  "description": "commercetools API Extension: restricted item (alcohol 18+) and delivery validation for the M&S UK demo",
+  "type": "module",
+  "main": "build/src/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/src/index.js",
+    "test": "tsc && node --test build/test/rules.test.js",
+    "connect:post-deploy": "node build/src/post-deploy.js",
+    "connect:pre-undeploy": "node build/src/pre-undeploy.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
