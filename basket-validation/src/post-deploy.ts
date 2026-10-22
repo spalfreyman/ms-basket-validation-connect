@@ -13,7 +13,7 @@ export const extensionBody = (url: string, secret?: string) => ({
 async function main() {
   const api = `${E('CTP_API_URL')}/${E('CTP_PROJECT_KEY')}/extensions`;
   const h = { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' };
-  const body = extensionBody(`${E('CONNECT_SERVICE_URL')}/extension/basket-validation`, E('EXTENSION_SHARED_SECRET') || undefined);
+  const body = extensionBody(E("CONNECT_SERVICE_URL"), E('EXTENSION_SHARED_SECRET') || undefined);
   const cur = await fetch(`${api}/key=${EXTENSION_KEY}`, { headers: h });
   if (cur.ok) { const c: any = await cur.json();
     await fetch(`${api}/key=${EXTENSION_KEY}`, { method: 'POST', headers: h, body: JSON.stringify({ version: c.version, actions: [{ action: 'changeDestination', destination: body.destination }, { action: 'changeTriggers', triggers: body.triggers }, { action: 'setTimeoutInMs', timeoutInMs: body.timeoutInMs }] }) });
