@@ -40,3 +40,16 @@ test('handler: 400 on violation, fails open on error', async () => {
   const ord = await handle({ action: 'Create', resource: { typeId: 'order', obj: { customerId: 'c1', lineItems: [wine()] } } }, { getCustomerDob: async () => '2015-01-01' });
   assert.equal(ord.status, 400);
 });
+
+test('split baskets: every delivery group address is checked', () => {
+  const cart = { lineItems: [wine()], shipping: [{ shippingKey: 'parcel', shippingAddress: { postalCode: 'NR2 1QR' } }, { shippingKey: 'other', shippingAddress: { postalCode: 'BT1 1AA' } }] };
+  assert.equal(validateCart(cart).some((x) => x.code === 'MS_RESTRICTED_AREA'), true);
+  const locker = { lineItems: [wine()], shipping: [{ shippingKey: 'p', shippingInfo: { shippingMethod: { key: 'click-collect-locker' } } }] };
+  assert.equal(validateCart(locker).some((x) => x.code === 'MS_RESTRICTED_LOCKER'), true);
+});
+test('one chosen gift, quantity 1', () => {
+  const g = (q: number) => ({ ...jumper(q), custom: { fields: { giftSelection: 'gift-choice-women-50' } } });
+  assert.deepEqual(validateCart({ lineItems: [jumper(), g(1)] }), []);
+  assert.equal(validateCart({ lineItems: [g(2)] })[0].code, 'MS_GIFT_LIMIT');
+  assert.equal(validateCart({ lineItems: [g(1), g(1)] })[0].code, 'MS_GIFT_LIMIT');
+});

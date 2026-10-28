@@ -8,11 +8,14 @@ export const NO_ALCOHOL_AREAS = ['BT', 'GY', 'HS', 'IM', 'JE', 'ZE', 'GX'];
 export const LOCKER_METHOD_KEY = 'click-collect-locker';
 
 export type Attr = { name: string; value: unknown };
-export type LineItem = { quantity: number; name?: Record<string, string>; variant?: { attributes?: Attr[] } };
+export type LineItem = { quantity: number; name?: Record<string, string>; variant?: { attributes?: Attr[] }; custom?: { fields?: Record<string, unknown> } };
 export type Cart = {
   id?: string; customerId?: string; shippingAddress?: { postalCode?: string; country?: string };
   lineItems: LineItem[];
-  shippingInfo?: { shippingMethod?: { obj?: { key?: string } } ; shippingMethodName?: string };
+  shippingInfo?: { shippingMethod?: { obj?: { key?: string }; key?: string } ; shippingMethodName?: string };
+  // ShippingMode Multiple: one entry per delivery group, each with its own address
+  shipping?: { shippingKey?: string; shippingAddress?: { postalCode?: string }; shippingInfo?: { shippingMethod?: { obj?: { key?: string }; key?: string } } }[];
+  itemShippingAddresses?: { postalCode?: string }[];
   custom?: { type?: { id: string }; fields?: Record<string, unknown> };
 };
 
@@ -27,12 +30,15 @@ export const postcodeArea = (pc?: string) => {
   return m ? m[1] : undefined;
 };
 
-export type Facts = { restrictedItemsPresent: boolean; restrictedQuantity: number; deliveryClasses: string[]; postcodeArea?: string };
+export type Facts = { restrictedItemsPresent: boolean; restrictedQuantity: number; deliveryClasses: string[]; postcodeArea?: string; areas: string[]; methodKeys: string[] };
 export const computeFacts = (cart: Cart): Facts => {
   const restricted = cart.lineItems.filter(isRestricted);
   const classes = [...new Set(cart.lineItems.map(li => attr(li, 'deliveryClass')).filter((x): x is string => !!x))].sort();
+  const areas = [...new Set([cart.shippingAddress?.postalCode, ...(cart.shipping ?? []).map((s) => s.shippingAddress?.postalCode), ...(cart.itemShippingAddresses ?? []).map((a) => a.postalCode)]
+    .map((pc) => postcodeArea(pc)).filter((x): x is string => !!x))];
+  const methodKeys = [cart.shippingInfo?.shippingMethod, ...(cart.shipping ?? []).map((s) => s.shippingInfo?.shippingMethod)].map((m) => m?.obj?.key ?? m?.key).filter((x): x is string => !!x);
   return { restrictedItemsPresent: restricted.length > 0, restrictedQuantity: restricted.reduce((n, li) => n + li.quantity, 0),
-    deliveryClasses: classes, postcodeArea: postcodeArea(cart.shippingAddress?.postalCode) };
+    deliveryClasses: classes, postcodeArea: postcodeArea(cart.shippingAddress?.postalCode) ?? areas[0], areas, methodKeys };
 };
 
 export type Violation = { code: string; message: string };
@@ -41,17 +47,21 @@ const nm = (li: LineItem) => li.name?.['en-GB'] ?? 'item';
 /** Rules that apply on every cart change. */
 export const validateCart = (cart: Cart, facts = computeFacts(cart)): Violation[] => {
   const v: Violation[] = [];
-  const area = facts.postcodeArea;
+  const areas = facts.areas.length ? facts.areas : facts.postcodeArea ? [facts.postcodeArea] : [];
   if (facts.restrictedQuantity > RESTRICTED_QUANTITY_LIMIT)
     v.push({ code: 'MS_RESTRICTED_QTY', message: `You can buy up to ${RESTRICTED_QUANTITY_LIMIT} age-restricted items per order.` });
-  if (area && NO_DELIVERY_AREAS.includes(area))
-    v.push({ code: 'MS_NO_DELIVERY_AREA', message: `We can't deliver to ${area} postcodes.` });
-  if (area && facts.restrictedItemsPresent && NO_ALCOHOL_AREAS.includes(area)) {
+  const blocked = areas.find((a) => NO_DELIVERY_AREAS.includes(a));
+  if (blocked) v.push({ code: 'MS_NO_DELIVERY_AREA', message: `We can't deliver to ${blocked} postcodes.` });
+  const noAlcohol = areas.find((a) => NO_ALCOHOL_AREAS.includes(a));
+  if (noAlcohol && facts.restrictedItemsPresent) {
     const names = cart.lineItems.filter(isRestricted).map(nm).join(', ');
-    v.push({ code: 'MS_RESTRICTED_AREA', message: `Age-restricted items (${names}) can't be delivered to ${area} postcodes.` });
+    v.push({ code: 'MS_RESTRICTED_AREA', message: `Age-restricted items (${names}) can't be delivered to ${noAlcohol} postcodes.` });
   }
-  const method = cart.shippingInfo?.shippingMethod?.obj?.key;
-  if (method === LOCKER_METHOD_KEY && facts.restrictedItemsPresent)
+  // selectable free gift (F9): one chosen gift line, quantity 1. Eligibility, one-unit-free and re-qualification are enforced by the Cart Discount itself.
+  const giftLines = cart.lineItems.filter((li) => li.custom?.fields?.giftSelection);
+  if (giftLines.length > 1 || giftLines.some((li) => li.quantity > 1))
+    v.push({ code: 'MS_GIFT_LIMIT', message: 'You can choose one free gift per order.' });
+  if (facts.methodKeys.includes(LOCKER_METHOD_KEY) && facts.restrictedItemsPresent)
     v.push({ code: 'MS_RESTRICTED_LOCKER', message: 'Age-restricted items cannot be collected from a parcel locker. Choose store collection or home delivery.' });
   return v;
 };
