@@ -9,7 +9,7 @@ export const extensionBody = (url: string, secret?: string) => ({
   key: EXTENSION_KEY,
   destination: { type: 'HTTP', url, ...(secret ? { authentication: { type: 'AuthorizationHeader', headerValue: secret } } : {}) },
   triggers: [{ resourceTypeId: 'cart', actions: ['Create', 'Update'] }, { resourceTypeId: 'order', actions: ['Create'] }],
-  timeoutInMs: 2000 });
+  timeoutInMs: Number(process.env.EXTENSION_TIMEOUT_MS ?? 10000) }); // sandbox deployments cold-start, so allow more than the 2s default
 async function main() {
   const api = `${E('CTP_API_URL')}/${E('CTP_PROJECT_KEY')}/extensions`;
   const h = { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' };
